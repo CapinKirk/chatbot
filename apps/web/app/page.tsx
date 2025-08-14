@@ -13,14 +13,14 @@ export default function Page(){
     socketRef.current = socket;
     socket.on('connected', async ()=>{
       try {
-        let cid = null as string | null;
+        let cid: string | null = null;
         try { cid = localStorage.getItem('conversationId'); } catch {}
         const wasNew = !cid;
         if (!cid) {
           const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/conversations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
           const conv = await res.json();
-          cid = conv.id;
-          try { localStorage.setItem('conversationId', cid); } catch {}
+          cid = typeof conv?.id === 'string' ? conv.id : null;
+          if (cid) { try { localStorage.setItem('conversationId', cid); } catch {} }
         }
         if (cid) {
           setConversationId(cid);
