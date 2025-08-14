@@ -12,10 +12,18 @@ export default function Page(){
     socketRef.current = socket;
     socket.on('connected', async ()=>{
       try {
-        const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/conversations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
-        const conv = await res.json();
-        setConversationId(conv.id);
-        socket.emit('join', { conversationId: conv.id });
+        let cid = null as string | null;
+        try { cid = localStorage.getItem('conversationId'); } catch {}
+        if (!cid) {
+          const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/conversations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+          const conv = await res.json();
+          cid = conv.id;
+          try { localStorage.setItem('conversationId', cid); } catch {}
+        }
+        if (cid) {
+          setConversationId(cid);
+          socket.emit('join', { conversationId: cid });
+        }
       } catch {}
     });
     socket.on('message', (m: any)=> setMessages(prev=>[...prev, { role: m.role, content: m.content }]));

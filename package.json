@@ -9,8 +9,9 @@
     "test": "pnpm -w -r run test",
     "lint": "pnpm -w -r run lint",
     "typecheck": "pnpm -w -r run typecheck",
-    "e2e": "pnpm -w -C infra run e2e",
-    "db:reset": "pnpm -w -C prisma run reset"
+    "e2e": "pnpm -w -C apps/web e2e",
+    "db:reset": "pnpm -w -C prisma run reset",
+    "load": "node -e \"console.log('Install k6 locally to run load: k6 run infra/k6/load.js')\""
   },
   "devDependencies": {
     "@prisma/client": "6.13.0",

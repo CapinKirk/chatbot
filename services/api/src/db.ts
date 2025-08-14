@@ -104,6 +104,15 @@ export async function listUsers(): Promise<Array<Pick<User,'id'|'email'|'display
   return mem.users.map(u=> ({ id: u.id, email: u.email, displayName: u.displayName, avatarUrl: u.avatarUrl ?? null, active: u.active, source: u.source }));
 }
 
+export async function listConversations(limit = 20): Promise<Array<Pick<Conversation,'id'|'status'|'createdAt'|'updatedAt'>>> {
+  const prisma = await getPrisma();
+  if (prisma) {
+    const rows = await prisma.conversation.findMany({ orderBy: { updatedAt: 'desc' }, take: limit });
+    return rows.map((c: any)=> ({ id: c.id, status: c.status, createdAt: c.createdAt?.toISOString?.() || new Date().toISOString(), updatedAt: c.updatedAt?.toISOString?.() || new Date().toISOString() }));
+  }
+  return Array.from(mem.conversations.values()).sort((a,b)=> b.updatedAt.localeCompare(a.updatedAt)).slice(0, limit);
+}
+
 export async function saveSyncLog(entry: Omit<SyncLog,'id'|'createdAt'>): Promise<SyncLog> {
   const now = new Date().toISOString();
   const prisma = await getPrisma();

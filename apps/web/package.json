@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "next": "14.2.5",
@@ -23,7 +24,9 @@
     "@types/react": "18.2.66",
     "@types/react-dom": "18.2.22",
     "eslint": "9.10.0",
-    "vitest": "1.6.0"
+    "vitest": "1.6.0",
+    "@playwright/test": "1.47.1",
+    "playwright": "1.47.1"
   }
 }
 

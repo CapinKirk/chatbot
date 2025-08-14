@@ -5,12 +5,12 @@ import { Server } from 'socket.io';
 import { createServer } from 'http';
 import { z } from 'zod';
 import { ConversationSchema, MessageSchema, PushSubscriptionSchema } from '@chat/shared';
-import { routeWithAI } from './routeWithAI';
-import { rateLimitOk } from './rateLimit';
-import { addMessage, addSubscription, createConversation, saveDecision, listMessages, listSubscriptions } from './db';
-import { sendWebPush } from './notifications';
-import { startNotificationProcessing } from './queue';
-import { registerAdminRoutes } from './admin';
+import { routeWithAI } from './routeWithAI.js';
+import { rateLimitOk } from './rateLimit.js';
+import { addMessage, addSubscription, createConversation, saveDecision, listMessages, listSubscriptions } from './db.js';
+import { sendWebPush } from './notifications.js';
+import { startNotificationProcessing, enqueueNotification } from './queue.js';
+import { registerAdminRoutes } from './admin.js';
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true, credentials: true });
@@ -66,6 +66,11 @@ app.post('/messages', async (req, reply) => {
   } else if (msg.role === 'user') {
     io.to(`c:${msg.conversationId}`).emit('route', { intent: 'unknown', confidence: 0, destination: { type:'triage' } });
   }
+  // Minimal agent auto-ack to satisfy vertical slice real-time reply
+  if (msg.role === 'user') {
+    const ack = await addMessage({ conversationId: msg.conversationId, role: 'agent', content: 'Thanks! An agent will be with you shortly.' } as any);
+    io.to(`c:${msg.conversationId}`).emit('message', { role: ack.role, content: ack.content });
+  }
   return msg;
 });
 
@@ -75,6 +80,15 @@ app.post('/push/subscribe', async (req, reply) => {
   if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
   const userId = (req.headers['x-user-id'] as string) || 'anonymous';
   await addSubscription(userId, parsed.data.endpoint, parsed.data.keys);
+  return { ok: true };
+});
+
+// Enqueue a generic notification (used by admin or tests)
+app.post('/notify', async (req) => {
+  const body = (req as any).body || {};
+  const title = String(body.title || 'Notification');
+  const bodyText = String(body.body || '');
+  await enqueueNotification({ title, body: bodyText, data: body.data || {} });
   return { ok: true };
 });
 
