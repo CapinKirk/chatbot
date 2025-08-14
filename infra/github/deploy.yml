@@ -3,6 +3,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform (deploy|rollback)'
+        required: false
+        default: 'deploy'
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,12 +18,21 @@ jobs:
         run: |
           echo "Build and upload artifacts here (placeholder)"
       - name: Deploy to staging
+        if: ${{ github.event.inputs.action != 'rollback' }}
         run: echo "Deploying to staging..." && sleep 1
       - name: Manual approval for production
+        if: ${{ github.event.inputs.action != 'rollback' }}
         uses: superbrothers/merge-approval@v3
         with:
           reviewers: ''
       - name: Deploy to production
+        if: ${{ github.event.inputs.action != 'rollback' }}
         run: echo "Deploying to production after approval..." && sleep 1
+      - name: Rollback to previous images
+        if: ${{ github.event.inputs.action == 'rollback' }}
+        run: |
+          echo "Rolling back to previous image tags..."
+          # TODO: implement rollback logic (e.g., use GHCR tags or Helm rollback)
+          sleep 1
 
 

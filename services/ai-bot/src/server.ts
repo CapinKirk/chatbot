@@ -3,6 +3,7 @@ import { z } from 'zod';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ClassifyRequestSchema } from '@chat/shared';
+import { dumpMetrics, incHttp } from './metrics';
 
 const app = Fastify({ logger: true });
 
@@ -25,10 +26,20 @@ app.get('/healthz', async () => {
   }
 });
 
+app.get('/metrics', async (req, reply) => {
+  reply.header('content-type', 'text/plain; version=0.0.4');
+  return dumpMetrics();
+});
+
 app.post('/classify', async (req, reply) => {
+  const t0 = Date.now();
   const parsed = ClassifyRequestSchema.safeParse((req as any).body);
-  if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+  if (!parsed.success) {
+    incHttp('ai-bot', 400, Date.now() - t0);
+    return reply.code(400).send({ error: parsed.error.message });
+  }
   const res = classifyIntent(parsed.data.text);
+  incHttp('ai-bot', 200, Date.now() - t0);
   return res;
 });
 

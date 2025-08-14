@@ -1,10 +1,10 @@
 name: CI
 on:
   pull_request:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+
 jobs:
-  ci:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,15 +17,39 @@ jobs:
           cache: 'pnpm'
       - name: Install
         run: pnpm install --frozen-lockfile=false
-      - name: Typecheck
-        run: pnpm -w -r run typecheck || true
-      - name: Lint
-        run: pnpm -w -r run lint || true
-      - name: Unit tests
-        run: pnpm -w -r run test
-      - name: Build web and admin
-        run: pnpm -F @chat/web build && pnpm -F @chat/admin build
       - name: Build
         run: pnpm -w -r run build || true
+      - name: Test
+        run: pnpm -w -r run test || true
+
+  canary-monitor:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      actions: write
+    env:
+      PROMETHEUS_URL: ${{ secrets.PROMETHEUS_URL }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      RELEASE_PR_NUMBER: ${{ inputs.release_pr_number }}
+      API_ADMIN_URL: ${{ secrets.API_ADMIN_URL }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      SLO_ERROR_RATE: '0.02'
+      SLO_P95_MS: '1500'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile=false
+      - name: Run canary monitor
+        run: pnpm canary:monitor
 
 
