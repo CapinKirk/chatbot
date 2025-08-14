@@ -1,0 +1,4 @@
+* text=auto eol=lf
+pnpm-lock.yaml merge=ours
+*.snap merge=union
+*.generated.* merge=ours
