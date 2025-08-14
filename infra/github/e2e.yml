@@ -16,9 +16,25 @@ jobs:
           cache: 'pnpm'
       - name: Install
         run: pnpm install --frozen-lockfile=false
-      - name: Build
-        run: pnpm -w -r run build || true
-      - name: E2E (placeholder)
-        run: echo "E2E will run Playwright in a future commit" && exit 0
+      - name: Install Playwright browsers
+        run: pnpm -C apps/web exec playwright install --with-deps
+      - name: Start API
+        run: pnpm -C services/api dev &
+      - name: Wait for API
+        run: npx wait-on http://localhost:4000/healthz
+      - name: Start web
+        run: pnpm -C apps/web dev &
+      - name: Wait for web
+        run: npx wait-on http://localhost:3000
+      - name: Run Playwright tests
+        run: pnpm -C apps/web e2e
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
 
 

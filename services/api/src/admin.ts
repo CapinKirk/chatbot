@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { listUsers, listSyncLogs, saveSyncLog, upsertUsers, createUser, updateUser, searchUsers } from './db';
+import { listUsers, listSyncLogs, saveSyncLog, upsertUsers, createUser, updateUser, searchUsers, listConversations } from './db.js';
 import { z } from 'zod';
 
 const SlackCreds = z.object({ clientId: z.string().min(1), clientSecret: z.string().min(1), signingSecret: z.string().min(1) });
@@ -66,6 +66,12 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   app.get('/admin/directory/status', async () => {
     const logs = await listSyncLogs(5);
     return { logs };
+  });
+
+  // Conversations list for admin
+  app.get('/admin/conversations', async () => {
+    const rows = await listConversations(50);
+    return { conversations: rows };
   });
 
   // Admin-managed users (Slack optional)

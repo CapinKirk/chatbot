@@ -1,0 +1,13 @@
+{
+  "name": "@chat/web-e2e",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "test:prod": "playwright test -c playwright.prod.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0"
+  }
+}
+
+

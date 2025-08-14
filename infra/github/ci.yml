@@ -23,6 +23,8 @@ jobs:
         run: pnpm -w -r run lint || true
       - name: Unit tests
         run: pnpm -w -r run test
+      - name: Offline AI eval gate
+        run: pnpm -C packages/shared dlx tsx bin/eval-ai.ts
       - name: Build web and admin
         run: pnpm -F @chat/web build && pnpm -F @chat/admin build
       - name: Build

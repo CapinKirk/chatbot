@@ -12,6 +12,7 @@ const handler = NextAuth({
       from: process.env.EMAIL_FROM || 'noreply@example.com',
       async sendVerificationRequest(params) {
         console.log('NextAuth magic link for', params.identifier, '=>', params.url);
+        try { (globalThis as any).__lastMagicURL = params.url; } catch {}
       }
     })
   ],
