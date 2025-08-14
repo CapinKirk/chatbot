@@ -11,10 +11,13 @@ export default function () {
   const res = http.post(`${base}/conversations`, {});
   check(res, { 'conv created': (r) => r.status === 200 });
   const conv = res.json();
+  // simulate network drop mid-run
   for (let i = 0; i < 5; i++) {
-    const m = http.post(`${base}/messages`, JSON.stringify({ conversationId: conv.id, role: 'user', content: `hello ${i}` }), { headers: { 'content-type': 'application/json' } });
+    const body = JSON.stringify({ conversationId: conv.id, role: 'user', content: `hello ${i}`, clientGeneratedId: `${__ITER}@${i}` });
+    const m = http.post(`${base}/messages`, body, { headers: { 'content-type': 'application/json' } });
     check(m, { 'msg ok': (r) => r.status === 200 });
-    sleep(0.2);
+    if (i === 2) sleep(10);
+    else sleep(0.2);
   }
 }
 

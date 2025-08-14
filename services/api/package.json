@@ -1,6 +1,6 @@
 {
   "name": "@chat/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -32,5 +32,11 @@
     "prisma": "6.13.0"
   }
 }
+<<<<<<< Current (Your changes)
+<<<<<<< Current (Your changes)
 
 
+=======
+>>>>>>> Incoming (Background Agent changes)
+=======
+>>>>>>> Incoming (Background Agent changes)

@@ -4,16 +4,18 @@ import { io, Socket } from 'socket.io-client';
 
 export default function Page(){
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Array<{role:string;content:string}>>([]);
+  const [messages, setMessages] = useState<Array<{role:string;content:string;id?:string}>>([]);
   const [text, setText] = useState('');
+  const [badge, setBadge] = useState(0);
   const socketRef = useRef<Socket | null>(null);
   useEffect(()=>{
-    const socket = io(process.env.NEXT_PUBLIC_API_WS || 'http://localhost:4000', { path: '/ws' });
+    const socket = io(process.env.NEXT_PUBLIC_API_WS || 'http://localhost:4000', { path: '/ws', reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 300, reconnectionDelayMax: 2000 });
     socketRef.current = socket;
     socket.on('connected', async ()=>{
       try {
         let cid = null as string | null;
         try { cid = localStorage.getItem('conversationId'); } catch {}
+        const wasNew = !cid;
         if (!cid) {
           const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/conversations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
           const conv = await res.json();
@@ -24,9 +26,18 @@ export default function Page(){
           setConversationId(cid);
           socket.emit('join', { conversationId: cid });
         }
+        // Test-mode simulated push when notifications are denied and a new conversation is created
+        const urlHasTest = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('test') === '1';
+        if (wasNew && (process.env.NEXT_PUBLIC_TEST_PUSH === '1' || urlHasTest)) {
+          const perm = (typeof Notification !== 'undefined') ? Notification.permission : 'denied';
+          if (perm !== 'granted') {
+            setBadge(b=> b + 1);
+            setMessages(prev=>[...prev, { role: 'system', content: 'Simulated push received' }]);
+          }
+        }
       } catch {}
     });
-    socket.on('message', (m: any)=> setMessages(prev=>[...prev, { role: m.role, content: m.content }]));
+    socket.on('message', (m: any)=> setMessages(prev=>[...prev, { role: m.role, content: m.content, id: m.id }]));
     socket.on('route', (r: any)=> setMessages(prev=>[...prev, { role: 'system', content: `Routed: ${r.intent} (${Math.round((r.confidence||0)*100)}%)` }]));
     return ()=>{ socket.disconnect(); };
   },[]);
@@ -36,7 +47,7 @@ export default function Page(){
       try {
         const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + `/conversations/${conversationId}/messages`);
         const rows = await res.json();
-        setMessages(rows.map((m: any)=> ({ role: m.role, content: m.content })));
+        setMessages(rows.map((m: any)=> ({ role: m.role, content: m.content, id: m.id })));
       } catch {}
     })();
   }, [conversationId]);
@@ -68,15 +79,17 @@ export default function Page(){
   }
   async function send(){
     if (!text.trim() || !conversationId) return;
+    const clientGeneratedId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
     await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/messages', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ conversationId, role: 'user', content: text })
+      body: JSON.stringify({ conversationId, role: 'user', content: text, clientGeneratedId })
     }).catch(()=>{});
     setText('');
   }
   return (
     <main className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-xl font-semibold mb-4">Chat</h1>
+      <h1 className="text-xl font-semibold mb-2">Chat {badge > 0 ? <span aria-label="badge" className="inline-block text-xs bg-red-600 text-white rounded-full px-2 ml-2">{badge}</span> : null}</h1>
+      {badge > 0 && <div className="mb-2 text-sm text-gray-600" data-test="fallback-alert">Notifications disabled. Showing in-app alerts.</div>}
       <div className="border rounded p-3 h-80 overflow-auto mb-3" aria-live="polite">
         {messages.map((m,i)=> <div key={i}><strong>{m.role}:</strong> {m.content}</div>)}
       </div>

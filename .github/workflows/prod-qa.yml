@@ -1,0 +1,180 @@
+name: Production QA and Test Link
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_lighthouse:
+        description: Run Lighthouse checks
+        required: false
+        default: "true"
+      run_playwright:
+        description: Run Playwright smoke
+        required: false
+        default: "true"
+
+jobs:
+  prod-qa:
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      ADMIN_PRODUCTION_URL: ${{ vars.ADMIN_PRODUCTION_URL }}
+      API_PRODUCTION_URL: ${{ vars.API_PRODUCTION_URL }}
+      AI_PRODUCTION_URL: ${{ vars.AI_PRODUCTION_URL }}
+    steps:
+      - name: Validate required URLs
+        run: |
+          : "${PRODUCTION_URL:?Set PRODUCTION_URL in GitHub Actions Variables}"
+          : "${ADMIN_PRODUCTION_URL:?Set ADMIN_PRODUCTION_URL in GitHub Actions Variables}"
+          : "${API_PRODUCTION_URL:?Set API_PRODUCTION_URL in GitHub Actions Variables}"
+          : "${AI_PRODUCTION_URL:?Set AI_PRODUCTION_URL in GitHub Actions Variables}"
+
+      - uses: actions/checkout@v4
+
+      - name: Add Production Test Link to Job Summary
+        run: |
+          {
+            echo "## Production test links"
+            echo ""
+            echo "- Web: ${PRODUCTION_URL}"
+            echo "- Admin: ${ADMIN_PRODUCTION_URL}"
+            echo "- API healthz: ${API_PRODUCTION_URL}/healthz"
+            echo "- AI bot healthz: ${AI_PRODUCTION_URL}/healthz"
+            echo ""
+            echo "Click the links above to test in production."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright deps
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        working-directory: apps/web-e2e
+        run: |
+          npm -v || true
+          pnpm -v || corepack enable && corepack prepare pnpm@latest --activate
+          pnpm install
+          npx playwright install --with-deps
+
+      - name: Run Playwright production smoke
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        working-directory: apps/web-e2e
+        env:
+          PRODUCTION_URL: ${{ env.PRODUCTION_URL }}
+          ADMIN_PRODUCTION_URL: ${{ env.ADMIN_PRODUCTION_URL }}
+          API_PRODUCTION_URL: ${{ env.API_PRODUCTION_URL }}
+          AI_PRODUCTION_URL: ${{ env.AI_PRODUCTION_URL }}
+        run: |
+          pnpm exec playwright test -c playwright.prod.config.ts
+
+      - name: Upload Playwright artifacts
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-prod-report
+          path: |
+            apps/web-e2e/playwright-report-prod
+            apps/web-e2e/test-results
+          retention-days: 7
+
+      - name: Lighthouse CI
+        if: ${{ github.event.inputs.run_lighthouse != 'false' }}
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: .lighthouserc.prod.json
+        env:
+          PRODUCTION_URL: ${{ env.PRODUCTION_URL }}
+          ADMIN_PRODUCTION_URL: ${{ env.ADMIN_PRODUCTION_URL }}
+
+name: Production QA and Test Link
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_lighthouse:
+        description: Run Lighthouse checks
+        required: false
+        default: "true"
+      run_playwright:
+        description: Run Playwright smoke
+        required: false
+        default: "true"
+
+jobs:
+  prod-qa:
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      ADMIN_PRODUCTION_URL: ${{ vars.ADMIN_PRODUCTION_URL }}
+      API_PRODUCTION_URL: ${{ vars.API_PRODUCTION_URL }}
+      AI_PRODUCTION_URL: ${{ vars.AI_PRODUCTION_URL }}
+    steps:
+      - name: Validate required URLs
+        run: |
+          : "${PRODUCTION_URL:?Set PRODUCTION_URL in GitHub Actions Variables}"
+          : "${ADMIN_PRODUCTION_URL:?Set ADMIN_PRODUCTION_URL in GitHub Actions Variables}"
+          : "${API_PRODUCTION_URL:?Set API_PRODUCTION_URL in GitHub Actions Variables}"
+          : "${AI_PRODUCTION_URL:?Set AI_PRODUCTION_URL in GitHub Actions Variables}"
+
+      - uses: actions/checkout@v4
+
+      - name: Add Production Test Link to Job Summary
+        run: |
+          {
+            echo "## Production test links"
+            echo ""
+            echo "- Web: ${PRODUCTION_URL}"
+            echo "- Admin: ${ADMIN_PRODUCTION_URL}"
+            echo "- API healthz: ${API_PRODUCTION_URL}/healthz"
+            echo "- AI bot healthz: ${AI_PRODUCTION_URL}/healthz"
+            echo ""
+            echo "Click the links above to test in production."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright deps
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        working-directory: apps/web-e2e
+        run: |
+          npm -v || true
+          pnpm -v || corepack enable && corepack prepare pnpm@latest --activate
+          pnpm install
+          npx playwright install --with-deps
+
+      - name: Run Playwright production smoke
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        working-directory: apps/web-e2e
+        env:
+          PRODUCTION_URL: ${{ env.PRODUCTION_URL }}
+          ADMIN_PRODUCTION_URL: ${{ env.ADMIN_PRODUCTION_URL }}
+          API_PRODUCTION_URL: ${{ env.API_PRODUCTION_URL }}
+          AI_PRODUCTION_URL: ${{ env.AI_PRODUCTION_URL }}
+        run: |
+          pnpm exec playwright test -c playwright.prod.config.ts
+
+      - name: Upload Playwright artifacts
+        if: ${{ github.event.inputs.run_playwright != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-prod-report
+          path: |
+            apps/web-e2e/playwright-report-prod
+            apps/web-e2e/test-results
+          retention-days: 7
+
+      - name: Lighthouse CI
+        if: ${{ github.event.inputs.run_lighthouse != 'false' }}
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: .lighthouserc.prod.json
+        env:
+          PRODUCTION_URL: ${{ env.PRODUCTION_URL }}
+          ADMIN_PRODUCTION_URL: ${{ env.ADMIN_PRODUCTION_URL }}
+

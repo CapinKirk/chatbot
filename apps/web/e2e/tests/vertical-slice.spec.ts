@@ -13,4 +13,14 @@ test('guest starts chat and receives agent auto-reply; transcript persists', asy
   await expect(page.getByText('agent: Thanks! An agent will be with you shortly.')).toBeVisible();
 });
 
+test('simulated push increments badge when notifications denied', async ({ page }) => {
+  // Deny notifications via context default; visit with test flag so app simulates push on new conversation
+  await page.goto('/?test=1');
+  // Wait for heading with optional badge
+  await expect(page.getByRole('heading', { name: /Chat/ })).toBeVisible();
+  // Expect simulated push message and badge
+  await expect(page.getByText('Simulated push received')).toBeVisible();
+  await expect(page.getByLabel('badge')).toBeVisible();
+});
+
 

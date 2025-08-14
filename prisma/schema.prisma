@@ -38,10 +38,13 @@ model Message {
   senderId       String?
   role           String   // user | agent | system | bot
   content        String
+  clientGeneratedId String?
   createdAt      DateTime @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   sender         User?        @relation(fields: [senderId], references: [id])
+
+  @@unique([conversationId, clientGeneratedId])
 }
 
 model RouteDecision {
@@ -53,6 +56,7 @@ model RouteDecision {
   confidence       Float
   destinationType  String   // user | queue | triage
   destinationId    String?
+  isShadow         Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   conversation     Conversation @relation(fields: [conversationId], references: [id])
@@ -84,6 +88,15 @@ model SyncLog {
   status    String
   details   Json
   createdAt DateTime @default(now())
+}
+
+model BotEvalRun {
+  id            String   @id @default(uuid())
+  runAt         DateTime @default(now())
+  dataset       String
+  modelVersion  String
+  promptId      String
+  metrics       Json
 }
 
 

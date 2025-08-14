@@ -37,18 +37,31 @@ app.post('/conversations', async (req, reply) => {
 // List messages for a conversation (persisted or in-memory)
 app.get('/conversations/:id/messages', async (req, reply) => {
   const id = (req.params as any).id as string;
-  const rows = await listMessages(id);
+  const since = (req.query as any)?.since as string | undefined;
+  const rows = await listMessages(id, since);
   return rows;
 });
 
 // Send message and broadcast
-const SendMessageSchema = MessageSchema.pick({ conversationId: true, role: true, content: true }).extend({ senderId: z.string().uuid().nullable().optional() });
+const SendMessageSchema = MessageSchema.pick({ conversationId: true, role: true, content: true }).extend({ senderId: z.string().uuid().nullable().optional(), clientGeneratedId: z.string().min(1).optional() });
 app.post('/messages', async (req, reply) => {
   const ip = (req.headers['x-forwarded-for'] as string) || (req.socket as any).remoteAddress || 'ip';
   if (!rateLimitOk(ip, 20, 60_000)) return reply.code(429).send({ error: 'rate_limited' });
   const parsed = SendMessageSchema.safeParse((req as any).body);
   if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
-  const msg = await addMessage(parsed.data as any);
+  // Idempotent insert by clientGeneratedId
+  let msg;
+  try {
+    msg = await addMessage(parsed.data as any);
+  } catch (e) {
+    // If unique constraint hits, fetch the existing row
+    try {
+      const existing = await listMessages((parsed.data as any).conversationId);
+      msg = existing.find(m=> (parsed.data as any).clientGeneratedId && (m as any).clientGeneratedId === (parsed.data as any).clientGeneratedId) || existing[existing.length -1];
+    } catch {
+      throw e;
+    }
+  }
   io.to(`c:${msg.conversationId}`).emit('message', { role: msg.role, content: msg.content });
   // Canary percentage: only route via AI for a subset
   const canary = parseInt(process.env.CANARY_PERCENT || '5', 10);
@@ -56,7 +69,7 @@ app.post('/messages', async (req, reply) => {
     routeWithAI(msg, { aiUrl: process.env.AI_BOT_URL || 'http://localhost:4100/classify', timeoutMs: 2000 })
       .then(decision => {
         io.to(`c:${msg.conversationId}`).emit('route', { intent: decision.intent, confidence: decision.confidence, destination: decision.destination });
-        saveDecision({ conversationId: msg.conversationId, modelVersion: decision.modelVersion, promptId: decision.promptId, intent: decision.intent, confidence: decision.confidence, destinationType: (decision.destination as any).type, destinationId: (decision.destination as any).id ?? null }).catch(()=>{});
+        saveDecision({ conversationId: msg.conversationId, modelVersion: decision.modelVersion, promptId: decision.promptId, intent: decision.intent, confidence: decision.confidence, destinationType: (decision.destination as any).type, destinationId: (decision.destination as any).id ?? null, isShadow: false }).catch(()=>{});
         // Fire push notifications to all subscribers (demo: broadcast)
         listSubscriptions().then(subs => Promise.all(subs.map(s => sendWebPush({ endpoint: s.endpoint, keys: s.keys }, { title: 'New assignment', body: `Intent: ${decision.intent}` })))).catch(()=>{});
       })
@@ -65,6 +78,15 @@ app.post('/messages', async (req, reply) => {
       });
   } else if (msg.role === 'user') {
     io.to(`c:${msg.conversationId}`).emit('route', { intent: 'unknown', confidence: 0, destination: { type:'triage' } });
+  }
+
+  // Shadow mode: evaluate without affecting routing
+  if (msg.role === 'user' && process.env.SHADOW_MODE === '1') {
+    routeWithAI(msg, { aiUrl: process.env.AI_BOT_URL || 'http://localhost:4100/classify', timeoutMs: 2000 })
+      .then(decision => {
+        saveDecision({ conversationId: msg.conversationId, modelVersion: decision.modelVersion, promptId: decision.promptId, intent: decision.intent, confidence: decision.confidence, destinationType: (decision.destination as any).type, destinationId: (decision.destination as any).id ?? null, isShadow: true }).catch(()=>{});
+      })
+      .catch(()=>{});
   }
   // Minimal agent auto-ack to satisfy vertical slice real-time reply
   if (msg.role === 'user') {
