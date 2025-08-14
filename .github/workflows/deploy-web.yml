@@ -1,0 +1,49 @@
+name: Deploy Web to Vercel (Preview)
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy-web-preview:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write .vercel/project.json from secrets if provided
+        if: ${{ secrets.WEB_VERCEL_PROJECT_ID && secrets.VERCEL_ORG_ID }}
+        run: |
+          mkdir -p .vercel
+          cat > .vercel/project.json <<JSON
+          { "projectId": "${{ secrets.WEB_VERCEL_PROJECT_ID }}", "orgId": "${{ secrets.VERCEL_ORG_ID }}" }
+          JSON
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel
+
+      - name: Create .env.preview from GitHub Secrets and Vars
+        run: |
+          cat > ../../.env.preview <<'EOF'
+          NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET_STAGING }}
+          NEXTAUTH_URL=${{ vars.ADMIN_STAGING_URL }}
+          WEB_PUSH_VAPID_PUBLIC_KEY=${{ secrets.WEB_PUSH_VAPID_PUBLIC_KEY_STAGING }}
+          WEB_PUSH_VAPID_PRIVATE_KEY=${{ secrets.WEB_PUSH_VAPID_PRIVATE_KEY_STAGING }}
+          API_BASE_URL=${{ vars.API_STAGING_URL }}
+          EOF
+
+      - name: Push env to Vercel Preview
+        run: bash ../../scripts/vercel-sync-env.sh preview ../../.env.preview
+
+      - name: Pull Vercel env to local for build context
+        run: vercel pull --yes --environment=preview --token "$VERCEL_TOKEN"
+
+      - name: Build
+        run: vercel build --token "$VERCEL_TOKEN"
+
+      - name: Deploy preview
+        run: vercel deploy --prebuilt --token "$VERCEL_TOKEN"
+

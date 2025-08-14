@@ -5,11 +5,14 @@ export default function Page(){
   const { data: session } = useSession();
   const [logs, setLogs] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
   async function refresh(){
     const base = process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000';
     const s = await fetch(base + '/admin/directory/status').then(r=>r.json()).catch(()=>({ logs: [] }));
     const u = await fetch(base + '/admin/directory/users').then(r=>r.json()).catch(()=>({ users: [] }));
     setLogs(s.logs || []); setUsers(u.users || []);
+    const conv = await fetch(base + '/admin/conversations').then(r=>r.json()).catch(()=>({ conversations: [] }));
+    setConversations(conv.conversations || []);
   }
   useEffect(()=>{ refresh().catch(()=>{}); },[]);
   return (
@@ -42,6 +45,12 @@ export default function Page(){
             <label className="block">Private Key<input className="border p-2 w-full" name="priv" type="password" /></label>
             <button className="border rounded px-3 py-2" type="submit">Save</button>
           </form>
+        </div>
+        <div className="p-4 border rounded">
+          <h2 className="font-medium mb-2">Conversations</h2>
+          <ul className="text-sm space-y-1 max-h-64 overflow-auto">
+            {conversations.map((c: any)=> <li key={c.id}>{c.id} — {c.status}</li>)}
+          </ul>
         </div>
         <div className="p-4 border rounded">
           <div className="flex items-center justify-between">
