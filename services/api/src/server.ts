@@ -5,6 +5,8 @@ import { Server } from 'socket.io';
 import { createServer } from 'http';
 import { z } from 'zod';
 import { ConversationSchema, MessageSchema, PushSubscriptionSchema } from '@chat/shared';
+import swagger from '@fastify/swagger';
+import swaggerUI from '@fastify/swagger-ui';
 import { routeWithAI } from './routeWithAI.js';
 import { rateLimitOk } from './rateLimit.js';
 import { addMessage, addSubscription, createConversation, saveDecision, listMessages, listSubscriptions } from './db.js';
@@ -13,6 +15,8 @@ import { startNotificationProcessing, enqueueNotification } from './queue.js';
 import { registerAdminRoutes } from './admin.js';
 
 const app = Fastify({ logger: true });
+await app.register(swagger, { openapi: { info: { title: 'Chat API', version: '0.2.0' } } });
+await app.register(swaggerUI, { routePrefix: '/api/docs' });
 await app.register(cors, { origin: true, credentials: true });
 await app.register(websocket);
 startNotificationProcessing();
@@ -34,11 +38,13 @@ app.post('/conversations', async (req, reply) => {
   return conv;
 });
 
-// List messages for a conversation (persisted or in-memory)
+// List messages for a conversation with optional gap fill by since and sinceSeq
 app.get('/conversations/:id/messages', async (req, reply) => {
   const id = (req.params as any).id as string;
-  const since = (req.query as any)?.since as string | undefined;
-  const rows = await listMessages(id, since);
+  const q = (req.query as any) || {};
+  const since = q.since as string | undefined;
+  const sinceSeq = q.sinceSeq ? parseInt(String(q.sinceSeq), 10) : undefined;
+  const rows = await listMessages(id, since, sinceSeq);
   return rows;
 });
 
@@ -49,6 +55,15 @@ app.post('/messages', async (req, reply) => {
   if (!rateLimitOk(ip, 20, 60_000)) return reply.code(429).send({ error: 'rate_limited' });
   const parsed = SendMessageSchema.safeParse((req as any).body);
   if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+  // Idempotency via Idempotency-Key + clientGeneratedId
+  const idem = (req.headers['idempotency-key'] as string) || '';
+  if (idem && (parsed.data as any).clientGeneratedId) {
+    try {
+      const existing = await listMessages((parsed.data as any).conversationId);
+      const dup = existing.find(m=> (parsed.data as any).clientGeneratedId && (m as any).clientGeneratedId === (parsed.data as any).clientGeneratedId);
+      if (dup) return reply.code(409).header('Retry-After', '1').send({ error: 'duplicate' });
+    } catch {}
+  }
   // Idempotent insert by clientGeneratedId
   let msg;
   try {
@@ -62,7 +77,7 @@ app.post('/messages', async (req, reply) => {
       throw e;
     }
   }
-  io.to(`c:${msg.conversationId}`).emit('message', { role: msg.role, content: msg.content });
+  io.to(`c:${msg.conversationId}`).emit('message', { role: msg.role, content: msg.content, id: msg.id, seq: (msg as any).seq });
   // Canary percentage: only route via AI for a subset
   const canary = parseInt(process.env.CANARY_PERCENT || '5', 10);
   if (msg.role === 'user' && Math.random() * 100 < canary) {

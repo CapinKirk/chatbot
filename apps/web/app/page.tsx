@@ -4,7 +4,8 @@ import { io, Socket } from 'socket.io-client';
 
 export default function Page(){
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Array<{role:string;content:string;id?:string}>>([]);
+  const [messages, setMessages] = useState<Array<{role:string;content:string;id?:string;seq?:number}>>([]);
+  const lastSeqRef = useRef<number>(0);
   const [text, setText] = useState('');
   const [badge, setBadge] = useState(0);
   const socketRef = useRef<Socket | null>(null);
@@ -37,7 +38,12 @@ export default function Page(){
         }
       } catch {}
     });
-    socket.on('message', (m: any)=> setMessages(prev=>[...prev, { role: m.role, content: m.content, id: m.id }]));
+    socket.on('message', (m: any)=> {
+      const seq: number = typeof m?.seq === 'number' ? m.seq : (lastSeqRef.current + 1);
+      if (seq <= lastSeqRef.current) return; // discard stale
+      lastSeqRef.current = seq;
+      setMessages(prev=>[...prev, { role: m.role, content: m.content, id: m.id, seq }]);
+    });
     socket.on('route', (r: any)=> setMessages(prev=>[...prev, { role: 'system', content: `Routed: ${r.intent} (${Math.round((r.confidence||0)*100)}%)` }]));
     return ()=>{ socket.disconnect(); };
   },[]);
@@ -45,9 +51,13 @@ export default function Page(){
     if (!conversationId) return;
     (async ()=>{
       try {
-        const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + `/conversations/${conversationId}/messages`);
+        const res = await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + `/conversations/${conversationId}/messages?sinceSeq=${lastSeqRef.current}`);
         const rows = await res.json();
-        setMessages(rows.map((m: any)=> ({ role: m.role, content: m.content, id: m.id })));
+        const ordered = rows.sort((a:any,b:any)=> (a.seq||0)-(b.seq||0));
+        for (const m of ordered) {
+          if ((m.seq||0) > lastSeqRef.current) lastSeqRef.current = m.seq;
+        }
+        setMessages(ordered.map((m: any)=> ({ role: m.role, content: m.content, id: m.id, seq: m.seq })));
       } catch {}
     })();
   }, [conversationId]);

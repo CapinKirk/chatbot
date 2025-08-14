@@ -1,5 +1,5 @@
 type Conversation = { id: string; status: 'open'|'assigned'|'closed'; createdAt: string; updatedAt: string };
-type Message = { id: string; conversationId: string; senderId?: string|null; role: 'user'|'agent'|'system'|'bot'; content: string; clientGeneratedId?: string; createdAt: string };
+type Message = { id: string; conversationId: string; senderId?: string|null; role: 'user'|'agent'|'system'|'bot'; content: string; clientGeneratedId?: string; createdAt: string; seq?: number };
 type RouteDecision = { id: string; conversationId: string; modelVersion: string; promptId: string; intent: string; confidence: number; destinationType: string; destinationId?: string|null; isShadow: boolean; createdAt: string };
 type Subscription = { id: string; userId: string; endpoint: string; keys: any; createdAt: string; updatedAt: string };
 type User = { id: string; email: string; displayName: string; avatarUrl?: string|null; active: boolean; source: string; createdAt: string; updatedAt: string };
@@ -28,6 +28,9 @@ const mem = {
   syncLogs: [] as SyncLog[],
 };
 
+// Per-conversation sequence pointers (in-memory). Prisma path derives seq from row order.
+const memSeqPointers = new Map<string, number>();
+
 export async function createConversation(): Promise<Conversation> {
   const now = new Date().toISOString();
   const prisma = await getPrisma();
@@ -47,12 +50,19 @@ export async function addMessage(input: Omit<Message,'id'|'createdAt'>): Promise
   if (prisma) {
     try {
       const m = await prisma.message.create({ data: { ...input } });
-      return { id: m.id, conversationId: m.conversationId, senderId: (m as any).senderId ?? null, role: m.role as any, content: m.content, clientGeneratedId: (m as any).clientGeneratedId, createdAt: (m as any).createdAt?.toISOString?.() || now };
+      // Derive seq as count of rows for conversation after insert
+      let seq = 1;
+      try { seq = await prisma.message.count({ where: { conversationId: m.conversationId } }); } catch {}
+      return { id: m.id, conversationId: m.conversationId, senderId: (m as any).senderId ?? null, role: m.role as any, content: m.content, clientGeneratedId: (m as any).clientGeneratedId, createdAt: (m as any).createdAt?.toISOString?.() || now, seq };
     } catch (e) {
       // On unique violation, return existing row
       if ((input as any).clientGeneratedId) {
         const m = await prisma.message.findFirst({ where: { conversationId: input.conversationId, clientGeneratedId: (input as any).clientGeneratedId } });
-        if (m) return { id: m.id, conversationId: m.conversationId, senderId: (m as any).senderId ?? null, role: m.role as any, content: m.content, clientGeneratedId: (m as any).clientGeneratedId, createdAt: (m as any).createdAt?.toISOString?.() || now };
+        if (m) {
+          let seq = 1;
+          try { seq = await prisma.message.count({ where: { conversationId: m.conversationId, createdAt: { lte: (m as any).createdAt } } }); } catch {}
+          return { id: m.id, conversationId: m.conversationId, senderId: (m as any).senderId ?? null, role: m.role as any, content: m.content, clientGeneratedId: (m as any).clientGeneratedId, createdAt: (m as any).createdAt?.toISOString?.() || now, seq };
+        }
       }
       throw e;
     }
@@ -62,22 +72,28 @@ export async function addMessage(input: Omit<Message,'id'|'createdAt'>): Promise
     const found = mem.messages.find(x => x.conversationId === input.conversationId && x.clientGeneratedId === (input as any).clientGeneratedId);
     if (found) return found;
   }
-  const m: Message = { id: cryptoRandomId(), ...input, createdAt: now } as Message;
+  const nextSeq = (memSeqPointers.get(input.conversationId) || 0) + 1;
+  memSeqPointers.set(input.conversationId, nextSeq);
+  const m: Message = { id: cryptoRandomId(), ...input, createdAt: now, seq: nextSeq } as Message;
   mem.messages.push(m);
   return m;
 }
 
-export async function listMessages(conversationId: string, sinceIso?: string): Promise<Message[]> {
+export async function listMessages(conversationId: string, sinceIso?: string, sinceSeq?: number): Promise<Message[]> {
   const prisma = await getPrisma();
   if (prisma) {
     const where: any = { conversationId };
     if (sinceIso) where.createdAt = { gt: new Date(sinceIso) };
     const rows = await prisma.message.findMany({ where, orderBy: { createdAt: 'asc' } });
-    return rows.map((m: any) => ({ id: m.id, conversationId: m.conversationId, senderId: m.senderId ?? null, role: m.role, content: m.content, createdAt: m.createdAt?.toISOString?.() || new Date().toISOString() }));
+    let seq = 0;
+    const mapped = rows.map((m: any) => ({ id: m.id, conversationId: m.conversationId, senderId: m.senderId ?? null, role: m.role, content: m.content, createdAt: m.createdAt?.toISOString?.() || new Date().toISOString(), seq: ++seq }));
+    if (sinceSeq && sinceSeq > 0) return mapped.filter((r: any) => (r.seq || 0) > sinceSeq);
+    return mapped;
   }
   let rows = mem.messages.filter(m => m.conversationId === conversationId);
   if (sinceIso) rows = rows.filter(m => m.createdAt > sinceIso);
-  return rows.sort((a,b)=> a.createdAt.localeCompare(b.createdAt));
+  if (sinceSeq && sinceSeq > 0) rows = rows.filter(m => (m.seq || 0) > sinceSeq);
+  return rows.sort((a,b)=> (a.seq || 0) - (b.seq || 0));
 }
 
 export async function saveDecision(input: Omit<RouteDecision,'id'|'createdAt'>): Promise<RouteDecision> {
