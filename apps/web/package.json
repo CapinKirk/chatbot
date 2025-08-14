@@ -16,7 +16,8 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "socket.io-client": "4.7.5",
-    "next-auth": "4.24.7"
+    "next-auth": "4.24.7",
+    "@supabase/supabase-js": "2.45.0"
   },
   "devDependencies": {
     "typescript": "5.5.4",
@@ -29,11 +30,3 @@
     "playwright": "1.47.1"
   }
 }
-<<<<<<< Current (Your changes)
-<<<<<<< Current (Your changes)
-
-
-=======
->>>>>>> Incoming (Background Agent changes)
-=======
->>>>>>> Incoming (Background Agent changes)

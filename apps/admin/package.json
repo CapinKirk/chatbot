@@ -14,7 +14,8 @@
     "next": "14.2.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "next-auth": "4.24.7"
+    "next-auth": "4.24.7",
+    "@supabase/supabase-js": "2.45.0"
   },
   "devDependencies": {
     "typescript": "5.5.4",
@@ -25,11 +26,3 @@
     "vitest": "1.6.0"
   }
 }
-<<<<<<< Current (Your changes)
-<<<<<<< Current (Your changes)
-
-
-=======
->>>>>>> Incoming (Background Agent changes)
-=======
->>>>>>> Incoming (Background Agent changes)
