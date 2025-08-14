@@ -1,11 +1,10 @@
 import { FastifyInstance } from 'fastify';
-import { listUsers, listSyncLogs, saveSyncLog, upsertUsers, createUser, updateUser, searchUsers } from './db';
+import { listUsers, listSyncLogs, saveSyncLog, upsertUsers, createUser, updateUser, searchUsers, listConversations } from './db.js';
 import { z } from 'zod';
 
-const SlackCreds = z.object({ clientId: z.string().min(1), clientSecret: z.string().min(1), signingSecret: z.string().min(1) });
 const VapidCreds = z.object({ publicKey: z.string().min(1), privateKey: z.string().min(1) });
 
-const memoryStore: { slack?: z.infer<typeof SlackCreds>; vapid?: z.infer<typeof VapidCreds> } = {};
+const memoryStore: { vapid?: z.infer<typeof VapidCreds>; settings?: any } = {};
 
 function requireCsrf(headers: Record<string, any>) {
   const token = headers['x-csrf-token'] as string | undefined;
@@ -21,15 +20,7 @@ function requireSession(headers: Record<string, any>) {
 }
 
 export async function registerAdminRoutes(app: FastifyInstance) {
-  app.post('/admin/credentials/slack', async (req, reply) => {
-    if (!requireCsrf(req.headers) || !requireSession(req.headers)) return reply.code(403).send({ error: 'forbidden' });
-    const parsed = SlackCreds.safeParse((req as any).body);
-    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
-    memoryStore.slack = parsed.data;
-    return { ok: true };
-  });
-
-  app.get('/admin/credentials/slack', async () => ({ has: !!memoryStore.slack }));
+  // Slack removed
 
   app.post('/admin/credentials/vapid', async (req, reply) => {
     if (!requireCsrf(req.headers) || !requireSession(req.headers)) return reply.code(403).send({ error: 'forbidden' });
@@ -40,6 +31,18 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   });
 
   app.get('/admin/credentials/vapid', async () => ({ has: !!memoryStore.vapid }));
+
+  // Settings endpoints (minimal placeholder)
+  app.get('/admin/settings', async () => ({
+    widget: { maskRoles: false, theme: 'light', popupDelayMs: 2000 },
+    routing: { canaryPercent: 5, timeoutSeconds: 300 },
+    notifications: { defaultOn: true },
+  }));
+  app.post('/admin/settings', async (req, reply) => {
+    if (!requireCsrf(req.headers) || !requireSession(req.headers)) return reply.code(403).send({ error: 'forbidden' });
+    memoryStore.settings = (req as any).body;
+    return { ok: true };
+  });
 
   // Directory status endpoints
   app.get('/admin/directory/users', async () => {
@@ -66,6 +69,12 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   app.get('/admin/directory/status', async () => {
     const logs = await listSyncLogs(5);
     return { logs };
+  });
+
+  // Conversations list for admin
+  app.get('/admin/conversations', async () => {
+    const rows = await listConversations(50);
+    return { conversations: rows };
   });
 
   // Admin-managed users (Slack optional)

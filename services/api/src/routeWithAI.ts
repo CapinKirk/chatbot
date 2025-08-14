@@ -8,10 +8,25 @@ export async function routeWithAI(
   const timeoutMs = opts?.timeoutMs ?? 2000;
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // Construct full classify request per shared schema
+    const body = {
+      messageId: cryptoRandomId(),
+      conversationId: msg.conversationId,
+      tenantId: process.env.TENANT_ID || '00000000-0000-4000-8000-000000000001',
+      sender: { type: 'user', id: null },
+      text: msg.content,
+      lang: 'auto',
+      contentType: 'text/plain',
+      source: 'api',
+      attachments: [],
+      requestId: cryptoRandomId(),
+      traceId: cryptoRandomId(),
+      hints: { preferredIntents: [], priority: 'normal' },
+    } as const;
     const res = await fetch(opts?.aiUrl || 'http://localhost:4100/classify', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: msg.content }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     clearTimeout(t);
@@ -32,5 +47,13 @@ export async function routeWithAI(
 }
 
 export default routeWithAI;
+
+function cryptoRandomId() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 
