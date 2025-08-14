@@ -1,0 +1,11 @@
+[
+  { "text": "I need help with an error in my account", "intent": "support" },
+  { "text": "Can I get a price quote?", "intent": "sales" },
+  { "text": "There is a charge on my card I don't recognize", "intent": "billing" },
+  { "text": "What are your business hours?", "intent": "unknown" },
+  { "text": "Refund my invoice please", "intent": "billing" },
+  { "text": "Schedule a demo with sales", "intent": "sales" },
+  { "text": "My app crashes with an error", "intent": "support" },
+  { "text": "Hello", "intent": "unknown" }
+]
+

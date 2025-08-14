@@ -1,0 +1,89 @@
+// Prisma schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  displayName String
+  avatarUrl   String?
+  active      Boolean  @default(true)
+  source      String   // 'slack' | 'local'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    Message[]
+  subscriptions NotificationSubscription[]
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  status    String   // open | assigned | closed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Message[]
+  decisions RouteDecision[]
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String?
+  role           String   // user | agent | system | bot
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User?        @relation(fields: [senderId], references: [id])
+}
+
+model RouteDecision {
+  id               String   @id @default(uuid())
+  conversationId   String
+  modelVersion     String
+  promptId         String
+  intent           String   // support | sales | billing | unknown
+  confidence       Float
+  destinationType  String   // user | queue | triage
+  destinationId    String?
+  createdAt        DateTime @default(now())
+
+  conversation     Conversation @relation(fields: [conversationId], references: [id])
+}
+
+model NotificationSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String
+  keys      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User @relation(fields: [userId], references: [id])
+}
+
+model Credential {
+  id        String   @id @default(uuid())
+  type      String   // slack | vapid
+  json      Json
+  rotatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SyncLog {
+  id        String   @id @default(uuid())
+  type      String   // slackUsers
+  status    String
+  details   Json
+  createdAt DateTime @default(now())
+}
+
+

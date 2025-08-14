@@ -1,0 +1,38 @@
+# Node
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnp.*
+
+# Build outputs
+.next/
+.out/
+dist/
+**/dist/
+build/
+**/build/
+coverage/
+.vite/
+
+# Env
+.env
+.env.*
+.vercel/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+.turbo/
+.cache/
+**/.vite/**
+**/.vitest/**
+**/.eslintcache

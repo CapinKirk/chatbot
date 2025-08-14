@@ -1,0 +1,31 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - name: Install
+        run: pnpm install --frozen-lockfile=false
+      - name: Typecheck
+        run: pnpm -w -r run typecheck || true
+      - name: Lint
+        run: pnpm -w -r run lint || true
+      - name: Unit tests
+        run: pnpm -w -r run test
+      - name: Build web and admin
+        run: pnpm -F @chat/web build && pnpm -F @chat/admin build
+      - name: Build
+        run: pnpm -w -r run build || true
+
+

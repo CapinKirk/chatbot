@@ -1,0 +1,27 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: chat
+    ports: ["5432:5432"]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+  api:
+    build: ../../services/api
+    command: pnpm start
+    ports: ["4000:4000"]
+    depends_on: [db, redis]
+  ai:
+    build: ../../services/ai-bot
+    command: pnpm start
+    ports: ["4100:4100"]
+  dirsync:
+    build: ../../services/directory-sync
+    command: pnpm start
+    ports: ["4200:4200"]
+
+

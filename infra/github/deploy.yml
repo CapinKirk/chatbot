@@ -1,0 +1,23 @@
+name: Deploy
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build artifacts
+        run: |
+          echo "Build and upload artifacts here (placeholder)"
+      - name: Deploy to staging
+        run: echo "Deploying to staging..." && sleep 1
+      - name: Manual approval for production
+        uses: superbrothers/merge-approval@v3
+        with:
+          reviewers: ''
+      - name: Deploy to production
+        run: echo "Deploying to production after approval..." && sleep 1
+
+
