@@ -10,10 +10,14 @@
     "lint": "pnpm -w -r run lint",
     "typecheck": "pnpm -w -r run typecheck",
     "e2e": "pnpm -w -C infra run e2e",
-    "db:reset": "pnpm -w -C prisma run reset"
+    "db:reset": "pnpm -w -C prisma run reset",
+    "canary:monitor": "tsx scripts/canary-monitor.ts"
   },
   "devDependencies": {
     "@prisma/client": "6.13.0",
-    "prisma": "6.13.0"
+    "prisma": "6.13.0",
+    "@octokit/rest": "20.0.2",
+    "node-fetch": "3.3.2",
+    "tsx": "4.16.2"
   }
 }

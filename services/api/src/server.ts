@@ -11,11 +11,23 @@ import { addMessage, addSubscription, createConversation, saveDecision, listMess
 import { sendWebPush } from './notifications';
 import { startNotificationProcessing } from './queue';
 import { registerAdminRoutes } from './admin';
+import { getCanaryPercent } from './flags';
+import { metricsText, recordHttp } from './metrics';
 
 const app = Fastify({ logger: true });
 await app.register(cors, { origin: true, credentials: true });
 await app.register(websocket);
 startNotificationProcessing();
+
+app.addHook('onResponse', async (req, reply) => {
+  const dur = Number(reply.getResponseTime?.() || 0);
+  recordHttp('api', reply.statusCode || 200, isFinite(dur) ? dur : 0);
+});
+
+app.get('/metrics', async (req, reply) => {
+  reply.header('content-type', 'text/plain; version=0.0.4');
+  return metricsText();
+});
 
 app.get('/healthz', async () => ({ ok: true }));
 await registerAdminRoutes(app);
@@ -51,16 +63,19 @@ app.post('/messages', async (req, reply) => {
   const msg = await addMessage(parsed.data as any);
   io.to(`c:${msg.conversationId}`).emit('message', { role: msg.role, content: msg.content });
   // Canary percentage: only route via AI for a subset
-  const canary = parseInt(process.env.CANARY_PERCENT || '5', 10);
+  const canary = getCanaryPercent();
   if (msg.role === 'user' && Math.random() * 100 < canary) {
+    const t0 = Date.now();
     routeWithAI(msg, { aiUrl: process.env.AI_BOT_URL || 'http://localhost:4100/classify', timeoutMs: 2000 })
       .then(decision => {
+        recordHttp('ai-bot', 200, Date.now() - t0);
         io.to(`c:${msg.conversationId}`).emit('route', { intent: decision.intent, confidence: decision.confidence, destination: decision.destination });
         saveDecision({ conversationId: msg.conversationId, modelVersion: decision.modelVersion, promptId: decision.promptId, intent: decision.intent, confidence: decision.confidence, destinationType: (decision.destination as any).type, destinationId: (decision.destination as any).id ?? null }).catch(()=>{});
         // Fire push notifications to all subscribers (demo: broadcast)
         listSubscriptions().then(subs => Promise.all(subs.map(s => sendWebPush({ endpoint: s.endpoint, keys: s.keys }, { title: 'New assignment', body: `Intent: ${decision.intent}` })))).catch(()=>{});
       })
       .catch(() => {
+        recordHttp('ai-bot', 500, Date.now() - t0);
         io.to(`c:${msg.conversationId}`).emit('route', { intent: 'unknown', confidence: 0, destination: { type:'triage' } });
       });
   } else if (msg.role === 'user') {

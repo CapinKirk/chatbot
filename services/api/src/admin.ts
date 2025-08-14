@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { listUsers, listSyncLogs, saveSyncLog, upsertUsers, createUser, updateUser, searchUsers } from './db';
 import { z } from 'zod';
+import { getCanaryPercent, setCanaryPercent } from './flags';
 
 const SlackCreds = z.object({ clientId: z.string().min(1), clientSecret: z.string().min(1), signingSecret: z.string().min(1) });
 const VapidCreds = z.object({ publicKey: z.string().min(1), privateKey: z.string().min(1) });
@@ -83,6 +84,17 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     const u = await updateUser(id, { displayName: body.displayName, avatarUrl: body.avatarUrl, active: body.active });
     if (!u) return reply.code(404).send({ error: 'not_found' });
     return { user: u };
+  });
+
+  // Feature flag: canary percent
+  app.get('/admin/flags/canary', async () => ({ canaryPercent: getCanaryPercent() }));
+  app.post('/admin/flags/canary', async (req, reply) => {
+    if (!requireCsrf(req.headers) || !requireSession(req.headers)) return reply.code(403).send({ error: 'forbidden' });
+    const schema = z.object({ percent: z.number().int().min(0).max(100) });
+    const parsed = schema.safeParse((req as any).body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+    const updated = setCanaryPercent(parsed.data.percent);
+    return { ok: true, canaryPercent: updated.canaryPercent };
   });
 }
 
