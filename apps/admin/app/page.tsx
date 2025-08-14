@@ -5,11 +5,14 @@ export default function Page(){
   const { data: session } = useSession();
   const [logs, setLogs] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
   async function refresh(){
     const base = process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000';
     const s = await fetch(base + '/admin/directory/status').then(r=>r.json()).catch(()=>({ logs: [] }));
     const u = await fetch(base + '/admin/directory/users').then(r=>r.json()).catch(()=>({ users: [] }));
     setLogs(s.logs || []); setUsers(u.users || []);
+    const conv = await fetch(base + '/admin/conversations').then(r=>r.json()).catch(()=>({ conversations: [] }));
+    setConversations(conv.conversations || []);
   }
   useEffect(()=>{ refresh().catch(()=>{}); },[]);
   return (
@@ -26,15 +29,7 @@ export default function Page(){
         )}
       </div>
       <section className="space-y-4">
-        <div className="p-4 border rounded">
-          <h2 className="font-medium mb-2">Slack Credentials</h2>
-          <form onSubmit={async (e)=>{ e.preventDefault(); const f = e.currentTarget as any; const body = { clientId: f.clientId.value, clientSecret: f.clientSecret.value, signingSecret: f.signingSecret.value }; const headers: Record<string,string> = { 'content-type':'application/json', 'x-csrf-token': process.env.NEXT_PUBLIC_CSRF || '' }; if (session?.user?.email) headers['x-admin-user'] = session.user.email; await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/admin/credentials/slack', { method: 'POST', headers, body: JSON.stringify(body) }).then(r=>r.json()).catch(()=>null); }} className="space-y-2">
-            <label className="block">Client ID<input className="border p-2 w-full" name="clientId" /></label>
-            <label className="block">Client Secret<input className="border p-2 w-full" name="clientSecret" type="password" /></label>
-            <label className="block">Signing Secret<input className="border p-2 w-full" name="signingSecret" type="password" /></label>
-            <button className="border rounded px-3 py-2" type="submit">Save</button>
-          </form>
-        </div>
+        {/* Slack removed */}
         <div className="p-4 border rounded">
           <h2 className="font-medium mb-2">Web Push (VAPID)</h2>
           <form onSubmit={async (e)=>{ e.preventDefault(); const f = e.currentTarget as any; const body = { publicKey: f.pub.value, privateKey: f.priv.value }; const headers: Record<string,string> = { 'content-type':'application/json', 'x-csrf-token': process.env.NEXT_PUBLIC_CSRF || '' }; if (session?.user?.email) headers['x-admin-user'] = session.user.email; await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/admin/credentials/vapid', { method: 'POST', headers, body: JSON.stringify(body) }).then(r=>r.json()).catch(()=>null); }} className="space-y-2">
@@ -44,19 +39,16 @@ export default function Page(){
           </form>
         </div>
         <div className="p-4 border rounded">
+          <h2 className="font-medium mb-2">Conversations</h2>
+          <ul className="text-sm space-y-1 max-h-64 overflow-auto">
+            {conversations.map((c: any)=> <li key={c.id}>{c.id} — {c.status}</li>)}
+          </ul>
+        </div>
+        <div className="p-4 border rounded">
           <div className="flex items-center justify-between">
             <h2 className="font-medium mb-2">Users</h2>
             <div className="space-x-2">
-              {process.env.NEXT_PUBLIC_DISABLE_SLACK !== '1' && (
-                <button className="border rounded px-3 py-2" onClick={async ()=>{
-                  await fetch((process.env.NEXT_PUBLIC_DIRSYNC_HTTP || 'http://localhost:4200') + '/sync', { method: 'POST' });
-                  const list = await fetch((process.env.NEXT_PUBLIC_DIRSYNC_HTTP || 'http://localhost:4200') + '/users').then(r=>r.json()).catch(()=>({ users: [] }));
-                  const headers: Record<string,string> = { 'x-csrf-token': process.env.NEXT_PUBLIC_CSRF || '', 'content-type':'application/json' };
-                  if (session?.user?.email) headers['x-admin-user'] = session.user.email;
-                  await fetch((process.env.NEXT_PUBLIC_API_HTTP || 'http://localhost:4000') + '/admin/directory/sync', { method: 'POST', headers, body: JSON.stringify({ users: list.users || [] }) });
-                  await refresh();
-                }}>Sync from Slack (read-only)</button>
-              )}
+              {/* Slack sync removed */}
               <button className="border rounded px-3 py-2" onClick={async ()=>{
                 const email = prompt('Email'); if (!email) return; const name = prompt('Display name') || email;
                 const headers: Record<string,string> = { 'x-csrf-token': process.env.NEXT_PUBLIC_CSRF || '', 'content-type':'application/json' };

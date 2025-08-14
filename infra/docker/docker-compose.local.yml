@@ -1,0 +1,33 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: chat
+    ports: ["5432:5432"]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+  api:
+    build: ../../services/api
+    command: pnpm start
+    ports: ["4000:4000"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      AI_BOT_URL: http://ai:4100/classify
+    depends_on: [db, redis, ai]
+  ai:
+    build: ../../services/ai-bot
+    command: pnpm start
+    ports: ["4100:4100"]
+    environment:
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_API_BASE: ${AI_API_BASE:-https://api.openai.com/v1}
+  dirsync:
+    build: ../../services/directory-sync
+    command: pnpm start
+    ports: ["4200:4200"]

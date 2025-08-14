@@ -6,6 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -38,21 +39,30 @@ model Message {
   senderId       String?
   role           String   // user | agent | system | bot
   content        String
+  clientGeneratedId String?
   createdAt      DateTime @default(now())
 
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   sender         User?        @relation(fields: [senderId], references: [id])
+
+  @@unique([conversationId, clientGeneratedId])
 }
 
 model RouteDecision {
   id               String   @id @default(uuid())
   conversationId   String
-  modelVersion     String
-  promptId         String
+  messageId        String
   intent           String   // support | sales | billing | unknown
   confidence       Float
   destinationType  String   // user | queue | triage
   destinationId    String?
+  modelVersion     String
+  promptId         String
+  thresholdRoute   Float
+  thresholdUnknown Float
+  mode             String   // live | shadow
+  reason           String   // ok | low_confidence | timeout | error | provider_rate_limited | manual_override
+  isShadow         Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   conversation     Conversation @relation(fields: [conversationId], references: [id])
@@ -86,4 +96,12 @@ model SyncLog {
   createdAt DateTime @default(now())
 }
 
+model BotEvalRun {
+  id            String   @id @default(uuid())
+  runAt         DateTime @default(now())
+  dataset       String
+  modelVersion  String
+  promptId      String
+  metrics       Json
+}
 
